@@ -69,6 +69,9 @@ class RoverState():
         # Worldmap
         # Update this image with the positions of navigable terrain
         # obstacles and rock samples
+        self.rocks = []
+        self.path_plan = []
+        self.occupancy = np.zeros((200, 200), dtype=np.float) 
         self.worldmap = np.zeros((200, 200, 3), dtype=np.float) 
         self.samples_pos = None # To store the actual sample positions
         self.samples_to_find = 0 # To store the initial count of samples
@@ -77,6 +80,18 @@ class RoverState():
         self.near_sample = 0 # Will be set to telemetry value data["near_sample"]
         self.picking_up = 0 # Will be set to telemetry value data["picking_up"]
         self.send_pickup = False # Set to True to trigger rock pickup
+
+    def spot_rock(self, rock_pos):        
+        new_rock = True
+        for i in range(len(self.rocks)):
+            # see if it's new rock or already it's in the list
+            if np.linalg.norm(self.rocks[i] - rock_pos) < 10:
+                new_rock = False
+                self.rocks[i] = 0.5 * (self.rocks[i] + rock_pos)
+        if new_rock:
+            self.rocks.append(rock_pos)       
+        #print('rocks: {}'.format([r.pos for r in self.rocks if not r.picked]))
+
 # Initialize our rover 
 Rover = RoverState()
 

@@ -1,4 +1,5 @@
 import numpy as np
+import cv2   
 
 
 # This is where you can build a decision tree for determining throttle, brake and steer 
@@ -9,6 +10,57 @@ def decision_step(Rover):
     # Here you're all set up with some basic functionality but you'll need to
     # improve on this decision tree to do a good job of navigating autonomously!
 
+        
+    ''' if len(Rover.path_plan) == 0:
+        theta = Rover.yaw/180 * np.pi + np.pi/8
+        M = np.array([[np.cos(theta), -np.sin(theta)], 
+                      [np.sin(theta),  np.cos(theta)]])
+        p = Rover.pos + np.matmul(M, np.array([2, 0]))        
+        thresh = (1 * (Rover.occupancy > 0)).astype(np.uint8)
+        im2, contours, hierarchy = cv2.findContours(thresh,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
+        cnt_img = np.zeros((200,200,3))
+        cv2.drawContours(cnt_img, contours, -1, (255,0,0), 1)
+        cv2.line(cnt_img, (int(Rover.pos[0]), int(Rover.pos[1])), (int(p[0]), int(p[1])), (0,255,0), 1)
+        #cv2.polylines(cnt_img,[np.array([Rover.pos, p])],True,(0,255,255))
+        intersections_x, intersections_y = cv2.inRange(cnt_img, (200,200,0), (255,255,0)).nonzero()
+        Rover.worldmap[:,:,1] = cnt_img[:,:,0]#cv2.inRange(cnt_img, (200,200,0), (255,255,0))
+        Rover.worldmap[:,:,1] = 0
+        cv2.drawContours(Rover.worldmap, contours, -1, (0,255,0), 1)     
+        print("contours {}".format(contours))   
+
+        if intersections_x.any():
+            intersection_pos = np.mean(np.hstack([intersections_x, intersections_y]), axis=1)
+            print("intersection at {}".format(intersection_pos))                       
+            print(contours)
+        print ('add point {}'.format(p))
+        Rover.path_plan.append(p)
+    
+    if len(Rover.path_plan) > 0:
+        if len(Rover.rocks) > 0:
+            p = Rover.rocks[0]
+        else:
+            p = Rover.path_plan[0]
+        vec = p - Rover.pos
+        rover_angle = Rover.yaw if Rover.yaw < 180 else Rover.yaw - 360
+        angle_delta = np.arctan2(vec[1], vec[0]) - rover_angle/180*np.pi
+        dist = np.linalg.norm(vec)
+        print ('vec: {}, angle_delta {}, dist {}'.format(vec, angle_delta, dist))
+        if np.abs(angle_delta) > 0:
+            Rover.steer = np.clip(angle_delta*10, -15, 15)
+        if np.abs(angle_delta) > 10*np.pi/180 and Rover.vel > 0.2:
+            Rover.brake = Rover.brake_set
+            Rover.throttle = 0
+        elif np.abs(angle_delta) < 2*np.pi/180 and Rover.vel < Rover.max_vel:
+            Rover.brake = 0
+            Rover.throttle = Rover.throttle_set
+        else: 
+            Rover.brake = 0
+            Rover.throttle = 0
+        if dist < 0.1:
+            Rover.path_plan.pop() '''
+    if len(Rover.rocks) > 0:
+        Rover.mode = 'approach_rock'
+                 
     # Example:
     # Check if we have vision data to make decisions with
     if Rover.nav_angles is not None:
@@ -60,8 +112,44 @@ def decision_step(Rover):
                     # Set steer to mean angle
                     Rover.steer = np.clip(np.mean(Rover.nav_angles * 180/np.pi), -15, 15)
                     Rover.mode = 'forward'
+        elif Rover.mode == 'approach_rock':
+        
+            p = Rover.rocks[0]
+            
+            vec = p - Rover.pos
+            rover_angle = Rover.yaw if Rover.yaw < 180 else Rover.yaw - 360
+            angle_delta = np.arctan2(vec[1], vec[0]) - rover_angle/180*np.pi
+            dist = np.linalg.norm(vec)
+            print ('vec: {}, angle_delta {}, dist {}'.format(vec, angle_delta, dist))
+            if np.abs(angle_delta) > 0:
+                Rover.steer = np.clip(angle_delta*10, -15, 15)
+            if np.abs(angle_delta) > 10*np.pi/180 and Rover.vel > 0.2:
+                Rover.brake = Rover.brake_set
+                Rover.throttle = 0
+            elif np.abs(angle_delta) < 2*np.pi/180 and Rover.vel < Rover.max_vel:
+                Rover.brake = 0
+                Rover.throttle = Rover.throttle_set
+            else: 
+                Rover.brake = 0
+                Rover.throttle = 0
+            if dist < 0.1:
+                Rover.path_plan.pop()
+
+            rock_vector = Rover.rocks[0] - Rover.pos
+            rock_yaw = np.arctan2(rock_vector[1], rock_vector[0]) - Rover.yaw
+            rock_distance = np.linalg.norm(rock_vector)
+            if np.abs(rock_yaw) > 10 or rock_distance < Rover.vel:
+                if Rover.vel > 0.2:
+                    Rover.brake = Rover.brake_set
+                else:
+                    Rover.brake = 0
+                Rover.throttle = 0
+            else:
+                Rover.brake = 0
+                Rover.throttle = Rover.throttle_set
+            Rover.steer = rock_yaw
     # Just to make the rover do something 
-    # even if no modifications have been made to the code
+    # even if no modifications have been made to the code    
     else:
         Rover.throttle = Rover.throttle_set
         Rover.steer = 0
@@ -70,6 +158,9 @@ def decision_step(Rover):
     # If in a state where want to pickup a rock send pickup command
     if Rover.near_sample and Rover.vel == 0 and not Rover.picking_up:
         Rover.send_pickup = True
+        Rover.rocks.pop()
+
+        Rover.mode = 'forward'
     
     return Rover
 
