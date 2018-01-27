@@ -173,7 +173,7 @@ def perception_step(Rover):
         print('not mapping roll = {}, pitch = {}'.format(Rover.roll, Rover.pitch))
     
 
-
+    Rover.rock_dists, Rover.rock_angles = to_polar_coords(rock_x, rock_y)    
     # 8) Convert rover-centric pixel positions to polar coordinates
     rover_centric_pixel_distances, rover_centric_angles = to_polar_coords(navigable_x, navigable_y)    
     #if rock_x.any() and rock_y.any():

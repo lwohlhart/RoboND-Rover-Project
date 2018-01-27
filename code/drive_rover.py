@@ -51,6 +51,8 @@ class RoverState():
         self.brake = 0 # Current brake value
         self.nav_angles = None # Angles of navigable terrain pixels
         self.nav_dists = None # Distances of navigable terrain pixels
+        self.rock_angles = None # Angles of navigable terrain pixels
+        self.rock_dists = None # Distances of navigable terrain pixels
         self.ground_truth = ground_truth_3d # Ground truth worldmap
         self.mode = 'forward' # Current mode (can be forward or stop)
         self.throttle_set = 0.2 # Throttle setting when accelerating
@@ -69,8 +71,11 @@ class RoverState():
         # Worldmap
         # Update this image with the positions of navigable terrain
         # obstacles and rock samples
+        self.start_pos = None
+        self.stuck_counter = 0
+        self.left_counter = 0
         self.rocks = []
-        self.path_plan = []
+        self.picked_rocks = []        
         self.occupancy = np.zeros((200, 200), dtype=np.float) 
         self.worldmap = np.zeros((200, 200, 3), dtype=np.float) 
         self.samples_pos = None # To store the actual sample positions
@@ -82,14 +87,21 @@ class RoverState():
         self.send_pickup = False # Set to True to trigger rock pickup
 
     def spot_rock(self, rock_pos):        
-        new_rock = True
-        for i in range(len(self.rocks)):
-            # see if it's new rock or already it's in the list
-            if np.linalg.norm(self.rocks[i] - rock_pos) < 10:
-                new_rock = False
-                self.rocks[i] = 0.5 * (self.rocks[i] + rock_pos)
-        if new_rock:
-            self.rocks.append(rock_pos)       
+        if not Rover.picking_up:
+            new_rock = True
+            for i in range(len(self.picked_rocks)):
+                # see if it's new rock or already it's in the picked list
+                if np.linalg.norm(self.picked_rocks[i] - rock_pos) < 2:
+                    new_rock = False
+                    self.picked_rocks[i] = 0.5 * (self.picked_rocks[i] + rock_pos)
+
+            for i in range(len(self.rocks)):
+                # see if it's new rock or already it's in the known list
+                if np.linalg.norm(self.rocks[i] - rock_pos) < 2:
+                    new_rock = False
+                    self.rocks[i] = 0.5 * (self.rocks[i] + rock_pos)
+            if new_rock:
+                self.rocks.append(rock_pos)       
         #print('rocks: {}'.format([r.pos for r in self.rocks if not r.picked]))
 
 # Initialize our rover 
