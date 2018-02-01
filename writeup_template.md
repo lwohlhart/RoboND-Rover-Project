@@ -1,26 +1,4 @@
 ## Project: Search and Sample Return
-### Writeup Template: You can use this file as a template for your writeup if you want to submit it as a markdown file, but feel free to use some other method and submit a pdf if you prefer.
-
----
-
-
-**The goals / steps of this project are the following:**  
-
-**Training / Calibration**  
-
-* Download the simulator and take data in "Training Mode"
-* Test out the functions in the Jupyter Notebook provided
-* Add functions to detect obstacles and samples of interest (golden rocks)
-* Fill in the `process_image()` function with the appropriate image processing steps (perspective transform, color threshold etc.) to get from raw images to a map.  The `output_image` you create in this step should demonstrate that your mapping pipeline works.
-* Use `moviepy` to process the images in your saved dataset with the `process_image()` function.  Include the video you produce as part of your submission.
-
-**Autonomous Navigation / Mapping**
-
-* Fill in the `perception_step()` function within the `perception.py` script with the appropriate image processing functions to create a map and update `Rover()` data (similar to what you did with `process_image()` in the notebook). 
-* Fill in the `decision_step()` function within the `decision.py` script with conditional statements that take into consideration the outputs of the `perception_step()` in deciding how to issue throttle, brake and steering commands. 
-* Iterate on your perception and decision function until your rover does a reasonable (need to define metric) job of navigating and mapping.  
-
-[//]: # (Image References)
 
 [grid_transform]: ./calibration_images/example_grid1.jpg
 [grid_warped]: ./IMG/warped_grid_image.png
@@ -28,11 +6,8 @@
 
 ## [Rubric](https://review.udacity.com/#!/rubrics/916/view) Points
 ---
-### Writeup / README
 
-#### 1. Provide a Writeup / README that includes all the rubric points and how you addressed each one.  You can submit your writeup as markdown or pdf.  
-
-### Notebook Analysis
+## Notebook Analysis
 In this section I describe the modifications I implemented in the Rover_Project_Test_Notebook which resulted in a valid mapping for the test samples I created using the Simulator.
 
 ### Perspective transformation to birds eye view
@@ -75,32 +50,83 @@ Based on the gained evidence an update for the occupancy grid map is generated m
 
 Using the current location and orientation (yaw) of the rover, the rover centric coordinates are transformed to global map coordinates and the occupancy grid map is updated based on these coordinates.
 
+For each frame of the input data set an image is assembled containing
+1. camera image
+2. warped camera image
+3. current state of the occupancy grid map combined with rock samples and the map ground truth 
+4. segmented warped camera image, depicting the current vision
+![](./IMG/mapping.png) 
 
+Using the frames of the dataset a video is generated which illustrates the mapping process.
+The resulting video can be found in ./output/test_mapping.mp4
 
+---
+## Autonomous Navigation and Mapping
 
+### Mapping
+For the mapping task of the assignment, the experiments performed in the jupyter notebook provided all required concepts, such that the mapping of the current vision image of the rover to the world map model is implemented as described in the previous section by:
+1. pitch corrected perspective transform of the vision image to birds eye view
+2. thresholding and binary closing of the warped image for segmentation and detection of navigable terrain, obstacles and rock samples
+3. transformation of the detected features to a rover centric coordinate frame
+4. preparing an update for the occupancy grid map 
+5. transforming the rover centric coordinate frame to global map coordinates and updating the occupancy grid map
+6. refreshing the worldmap based on found the current occupancy information and found rock samples
+7. extracting distances and angles from the current rover centric vision image for the decision process to enable reactive navigation
 
+---
+### Navigation
 
-#### 1. Run the functions provided in the notebook on test images (first with the test data provided, next on data you have recorded). Add/modify functions to allow for color selection of obstacles and rock samples.
+For the autonomous navigation of the rover, a simple "wall crawler" was developed to reactively navigate and explore the environment.
 
+#### forward mode
+In forward mode the rover takes the leftmost half of the available navigable terrain angles and averages them to determine the current steering angle. This technique makes the rover stick to the wall left to it and drive along close to its contour. If the current speed is lower than its desired maximum speed it applies throttle.
 
+If there are currently rock samples detected in the vision image, the navigation angles of the rock sample are used for the steering to make the rover approach the sample.
 
-#### 1. Populate the `process_image()` function with the appropriate analysis steps to map pixels identifying navigable terrain, obstacles and rock samples into a worldmap.  Run `process_image()` on your test data using the `moviepy` functions provided to create video output of your result. 
-And another! 
+#### sample nearby
+If the rover is close to a rock sample, it brakes and once it's at rest it sends a pick up command
 
-![alt text][image2]
-### Autonomous Navigation and Mapping
+#### stop 
+If there is not enough navigable terrain in the current vision image, the rover stops and turns on point towards the right until it finds sufficiently navigable terrain again
 
-#### 1. Fill in the `perception_step()` (at the bottom of the `perception.py` script) and `decision_step()` (in `decision.py`) functions in the autonomous mapping scripts and an explanation is provided in the writeup of how and why these functions were modified as they were.
+#### detecting stuck situation
+During forward mode the current velocity is monitored and if eventhough the rover tries to move forward, the velocity doesn't exceed a threshold a stuck counter is incremented up until it the situation is classified as being stuck.
 
+#### resolving stuck 
+If the rover appears to be stuck it tries to rotate towards the right and move back to break free from the location where it's stuck.
 
-#### 2. Launching in autonomous mode your rover can navigate and map autonomously.  Explain your results and how you might improve them in your writeup.  
+#### detecting circles
+Since the wall crawling mechanism favors steering to the left to stick to a wall, the rover can end up in a situation where it just drives in circles if it has enough space for it. To overcome this behaviour, a counter is increased everytime the rover steers towards the left and if it continously just steers left for a defined period the situation is classified as circling.
 
-**Note: running the simulator with different choices of resolution and graphics quality may produce different results, particularly on different machines!  Make a note of your simulator settings (resolution and graphics quality set on launch) and frames per second (FPS output to terminal by `drive_rover.py`) in your writeup when you submit the project so your reviewer can reproduce your results.**
+#### breaking circle
+If the rover detects that it's driving in circles, it stops and reorients towards the right to break the circling behaviour.
 
-Here I'll talk about the approach I took, what techniques I used, what worked and why, where the pipeline might fail and how I might improve it if I were going to pursue this project further.  
+#### done
+Once all six available rock samples are collected, the rover constanly measures the distance between its current location and its starting point. If it comes closer than 5 units to its starting location it stops, stays at its position and evaluates the task as being done.
 
+---
+### Simulation
+All simulations were performed using a resolution of 1024x768 with "Good" graphics quality in windowed mode.
 
+Using the rover simulation in autonomous mode, the implementation of the mapping and the navigation algorithm were evaluated.
+The rover is consistenly able to perform the wall crawling which in general leads to discovering the entire map. It detects the available rock samples and approaches them until the pickup is performed. If the rover gets stuck it is usually able disentangle itself using the stuck resolving approach.
 
-![alt text][image3]
+The following images show a succesfull mapping and collection run which resulted in the rover returning to its start location having collected the six rock samples and a having mapped the entire world.
+![](./IMG/autonomous_1.png)
+![](./IMG/autonomous_2.png)
+![](./IMG/autonomous_3.png)
 
+---
+### Discussion
+
+In general the mapping implementation works pretty nicely. It could be improved by better adjusting the perspective transformation to the current viewing angles (pitch and roll) of the rover. The image segmentation yiels a resonable estimate for the navigable terrain, however the obstacle detection (especially in the distant field of view) sometimes produce incorrect estimates of non navigable locations.
+
+Regarding the navigation we could heavily improve the rovers performance by not just reactively navigating using the angles of the current navigable terrain but implementing true global path planing which could lead to a more directed exploration of the world. At the moment the rover doesn't take into account whether or not it has already explored the world in the direction it's currently heading.
+Especially when it comes to returning to the starting position of the rover it would make sense to implement a true path planning algorithm which leads back to the origin rather than just stopping once it coincidentally comes close to the desired position.
+
+The resolution of a situation where the rover is stuck could also be improved by not just trying to disentangle it by turning and backing up in a predetermined way but analyzing how to actually resolve the situation.
+
+In forward mode the reactive navigation should actually try to determine if the location ahead of the rover is truely navigable. Just because there's enough navigable terrain in the current field of view doesn't necessarily mean that there's not an obstacle in close proximity of the rover where it could get stuck in.
+
+All in all the current implementation usually solves the task in a reasonable manner but it could definitely be improved.
 

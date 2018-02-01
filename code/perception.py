@@ -4,24 +4,8 @@ import scipy.ndimage as ndimage
 
 # Identify pixels above the threshold
 # Threshold of RGB > 160 does a nice job of identifying ground pixels only
-def color_thresh(img, rgb_thresh=(160, 160, 160), upper_rgb_thresh=None):
-    # Create an array of zeros same xy size as img, but single channel
-    color_select = np.zeros_like(img[:,:,0])
-    # Require that each pixel be above all three threshold values in RGB
-    # above_thresh will now contain a boolean array with "True"
-    # where threshold was met
-    above_thresh = (img[:,:,0] >= rgb_thresh[0]) \
-                & (img[:,:,1] >= rgb_thresh[1]) \
-                & (img[:,:,2] >= rgb_thresh[2])
-    if upper_rgb_thresh:
-        above_thresh = above_thresh \
-                & (img[:,:,0] <= upper_rgb_thresh[0]) \
-                & (img[:,:,1] <= upper_rgb_thresh[1]) \
-                & (img[:,:,2] <= upper_rgb_thresh[2])
-    # Index the array of zeros with the boolean array and set to 1
-    color_select[above_thresh] = 1
-    # Return the binary image
-    return color_select
+def color_thresh(img, rgb_thresh=(160, 160, 160), upper_rgb_thresh=(255,255,255)):
+    return cv2.inRange(img, rgb_thresh, upper_rgb_thresh)
 
 # Define a function to convert from image coords to rover coords
 def rover_coords(binary_img):
@@ -84,7 +68,6 @@ def perspect_transform(img, src, dst):
     return warped
 
 
-fade = np.rot90((np.tile(np.linspace(1,0,160),(320,1))))**2
 # Apply the above functions in succession and update the Rover state accordingly
 def perception_step(Rover):
     # Perform perception steps to update Rover()
@@ -113,10 +96,7 @@ def perception_step(Rover):
     navigable = ndimage.binary_closing(color_thresh(warped)).astype(int)
     obstacle = (1 - navigable) & perspect_transform(np.ones_like(warped[:,:,0]), source, destination)
     rock = color_thresh(warped, (100, 100, 0), (255, 255, 50))
-
-    # fade_warped = perspect_transform(fade, source, destination)
-    # navigable = navigable * fade
-    # obstacle = obstacle * fade
+    
     #rock = ndimage.binary_opening(rock).astype(int)
 
     # 4) Update Rover.vision_image (this will be displayed on left side of screen)
